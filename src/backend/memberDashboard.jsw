@@ -1,0 +1,164 @@
+import wixData from 'wix-data';
+export function test() {
+    return wixData.query("summaries").eq("approved", false).descending("_createdDate").limit(10).find()
+        .then((result) => {
+            return result
+        })
+}
+export function getOpenChildren() {
+    return wixData.query("members")
+        .eq("parentId", "")
+        .find()
+        .then((result) => {
+            return result.items.map(({ firstName, lastName, _id }) => {
+                return {
+                    'label': firstName + " " + lastName,
+                    'value': _id
+                }
+
+            })
+        })
+}
+export function createChildRequest(parentId, childId) {
+    return wixData.query("members")
+        .eq("_id", childId)
+        .find()
+        .then((result) => {
+            if (result.length < 1) {
+                throw "Requested Member Doesn't Exist"
+            }
+            return wixData.query("childClaim")
+                .eq('parentId', parentId)
+                .eq("childId", childId)
+                .find()
+                .then((result) => {
+                    if (result.length > 0) {
+                        throw 'Request for this child already sent'
+                    }
+                    let toInsert = {
+                        "title":childId,
+                        "childId": childId,
+                        "parentId": parentId,
+                        "approved":false,
+                        "denied":false
+                    };
+                    return wixData.insert("childClaim", toInsert)
+                    .then((res)=>{
+                        throw res
+                    }).catch((err)=>{
+                        throw err;
+                    })
+                })
+        })
+
+}
+export async function getSummaries(parentId) {
+    try {
+        let children = await wixData.query("members").eq("parentId", parentId).find();
+        let childrenIds = children.items.map(children => children._id);
+        let summaries = await wixData.query("summaries").hasSome("buddyId", childrenIds).descending("_createdDate").eq("approved", true).eq("denied", false).limit(10).find();
+        let eventIds = summaries.items.map(summary => summary.eventId);
+        let events = await wixData.query("Events/Events").hasSome("_id", eventIds).find();
+        if (children.length < 1) {
+            throw 'No children Registered';
+        }
+        if (summaries.length < 1) {
+            throw 'No Summaries Written';
+        }
+        let summariesContent = [];
+        summaries.items.forEach((summary) => {
+            let childName;
+            children.items.forEach((child) => {
+                if (child._id === summary.buddyId) {
+                    childName = child.title;
+                    return;
+                }
+            });
+            let eventTitle;
+            events.items.forEach((event) => {
+                if (summary.eventId === event._id) {
+                    eventTitle = event.title + " " + event.scheduleFormatted;
+                    return;
+                }
+            })
+
+            let summaryContent = {
+                "label": childName + "-" + eventTitle,
+                "value": summary._id,
+                "content": summary.content
+            }
+            summariesContent.push(summaryContent);
+
+        });
+        return summariesContent;
+
+    } catch (error) {
+        console.log(error);
+        throw error;
+    }
+}
+export function getSummaries2(parentId) {
+    return wixData.query("members")
+        .eq("parentId", parentId)
+        .find()
+        .then((members) => {
+            let membersInfo = members.items;
+            let memberIds = membersInfo.map((member) => member._id);
+            return wixData.query("summaries")
+                .hasSome("buddyId", memberIds)
+                .find()
+                .then((summaries) => {
+                    if (summaries.length < 1) {
+                        throw 'No summaries found.';
+                    }
+                    let summaryItems = summaries.items;
+                    let eventIds = summaryItems.map((items) => items.eventId);
+                    let summaryInfo = [];
+                    summaryItems.forEach((item) => {
+                        let content = item.content;
+                        wixData.query("Events/Events")
+                            .eq("_id", "e2f43b53-b387-48c0-99c2-74bdf932fca8")
+                            .find()
+                            .then((event) => {
+                                summaryInfo.push("gay");
+                                wixData.query("members")
+                                    .eq("_id", item.buddyId)
+                                    .find()
+                                    .then((memberResult) => {})
+                            }).catch((err) => {
+                                throw err;
+                            });
+
+                    })
+                    return summaryInfo;
+
+                }).catch((err) => {
+                    throw err;
+                })
+        })
+}
+export function createMember(firstName, lastName, gender) {
+    let toInsert = {
+        "title": firstName + " " + lastName,
+        "firstName": firstName,
+        "lastName": lastName,
+        "gender": gender,
+        "parentId": ""
+    };
+    return wixData.query("members")
+        .eq("firstName", firstName)
+        .eq("lastName", lastName)
+        .find()
+        .then((result) => {
+            if (result.length > 0) {
+                throw 'Member With Same Name Already Exists';
+            }
+            return wixData.insert("members", toInsert)
+                .then((item) => {
+                    return "sucess";
+                })
+                .catch((err) => {
+                    return err;
+                })
+        })
+}

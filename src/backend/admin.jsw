@@ -1,0 +1,244 @@
+import wixData from 'wix-data';
+export async function getSummaries() {
+    try {
+        let summaries = await wixData.query("summaries").ascending("_createdDate").eq("approved", false).eq("denied", false).limit(50).find();
+        if (summaries.length < 1) {
+            throw 'No Summaries Written';
+        }
+        let buddyIds = summaries.items.map(summary => summary.buddyId);
+        let children = await wixData.query("members").hasSome("_id", buddyIds).find();
+        let eventIds = summaries.items.map(summary => summary.eventId);
+        let volunteerIds = summaries.items.map(summary => summary.memberId);
+        let events = await wixData.query("Events/Events").hasSome("_id", eventIds).find();
+        let volunteers = await wixData.query("Members/FullData").hasSome("_id", volunteerIds).limit(20).find();
+        console.log(volunteers);
+        let summariesContent = [];
+        summaries.items.forEach((summary) => {
+            let childName;
+            let eventTitle;
+            let volunteerInfo;
+            children.items.forEach((child) => {
+                if (child._id === summary.buddyId) {
+                    childName = child.title;
+                    return;
+                }
+            });
+            events.items.forEach((event) => {
+                if (summary.eventId === event._id) {
+                    eventTitle = event.title + " " + event.scheduleFormatted;
+                    return;
+                }
+            });
+            volunteers.items.forEach((volunteer) => {
+                if (summary.memberId === volunteer._id) {
+                    console.log('id' + volunteer._id);
+                    volunteerInfo = volunteer.firstName + " " + volunteer.lastName + "-" + volunteer.loginEmail;
+                    return;
+                }
+            });
+            if (childName === undefined) {
+                childName = "Not listed";
+            }
+            console.log(volunteerInfo);
+            let summaryContent = {
+                "label": childName + "-" + eventTitle,
+                "volunteerInfo": volunteerInfo,
+                "id": summary._id,
+                "content": summary.content,
+            }
+            summariesContent.push(summaryContent);
+
+        });
+        return summariesContent;
+
+    } catch (error) {
+        console.log(error);
+        throw error;
+    }
+}
+export async function testhasSome(volunteerIds, eventIds) {
+    let volunteers = await wixData.query("Members/FullData").hasSome("_id", ['b1d82cf3-797c-4376-8aae-caf16f74033d']).find();
+    console.log(volunteers);
+    // let events = await wixData.query("Events/Events").hasSome("_id", eventIds).find();
+    // console.log(events);
+    // let event2 = await wixData.query("Members/FullData").hasSome("_id", ['b1d82cf3-797c-4376-8aae-caf16f74033d']).find();
+    // console.log(event2);
+
+
+}
+export async function getRequests() {
+    try {
+        let requests = await wixData.query("childClaim").eq("approved", false).eq("denied", false).limit(50).find();
+        console.log(requests)
+        if (requests.length < 1) {
+            throw 'No Requests Made';
+        }
+        let childrenIds = requests.items.map(request => request.childId);
+        console.log(childrenIds)
+        let children = await wixData.query("members").hasSome("_id", childrenIds).find();
+        let parentIds = requests.items.map(summary => summary.parentId);
+        let parents = await wixData.query("Members/FullData").hasSome("_id", parentIds).find();
+        let requestArray = [];
+        requests.items.forEach((request) => {
+            let childName;
+            let parentName;
+            children.items.forEach((child) => {
+                if (child._id === request.childId) {
+                    childName = child.title;
+                    return;
+                }
+            });
+            parents.items.forEach((parent) => {
+                if (request.parentId === parent._id) {
+                    parentName = parent.nickname;
+                    return;
+                }
+            });
+
+            if (childName === undefined) {
+                childName = "Not listed";
+            }
+            let requestInfo = {
+                "label": "Child: " + childName + " Parent: " + parentName,
+                "id": request._id,
+            }
+            requestArray.push(requestInfo);
+
+        });
+        console.log(requestArray)
+        return requestArray;
+
+    } catch (error) {
+        console.log(error);
+        throw error;
+    }
+}
+export function approveSummary(id) {
+    wixData.query("summaries").eq("_id", id).find().then((summaries) => {
+        if (summaries.length < 1) {
+            throw 'no summary';
+        }
+        let summary = summaries.items[0];
+        let toUpdate = {
+            "_id": summary._id,
+            "title": summary.title,
+            "memberId": summary.memberId,
+            "eventId": summary.eventId,
+            "buddyId": summary.buddyId,
+            "content": summary.content,
+            "approved": true,
+            "denied": false,
+            "eventHistoryId": summary.eventHistoryId
+        };
+        wixData.update("summaries", toUpdate)
+            .then((results) => {})
+            .catch((err) => {
+                throw err;
+            });
+    }).catch((err) => {
+        throw err;
+    })
+
+}
+export function approveRequest(id) {
+    return wixData.query("childClaim").eq("_id", id).eq('approved', false). eq('denied', false).find().then((members) => {
+        console.log(members)
+        if (members.length < 1) {
+            throw 'no request';
+        }
+        let summary = members.items[0];
+        console.log(summary)
+        let toUpdate = {
+            "_id": summary._id,
+            "title": summary.title,
+            "childId": summary.childId,
+            "parentId": summary.parentId,
+            "approved": true,
+            "denied": false,
+        };
+        return wixData.update("childClaim", toUpdate)
+            .then((results) => {
+                return wixData.query("members")
+                    .eq("_id", summary.childId)
+                    .find()
+                    .then((members) => {
+                        let member = members.items[0];
+                        console.log("member")
+                        console.log(member)
+                        console.log(members)
+                        console.log(member._id)
+                        let toUpdate = {
+                            "_id": member._id,
+                            "title": member.title,
+                            "firstName":member.firstName,
+                            "lastName": member.lastName,
+                            "gender": member.gender,
+                            "parentId": summary.parentId
+                        }
+                        return wixData.update("members", toUpdate)
+                            .then((res) => {
+                                return res
+                            })
+                    })
+            })
+            .catch((err) => {
+                throw err;
+            });
+    }).catch((err) => {
+        throw err;
+    })
+}
+export function denyRequest(id) {
+    return wixData.query("childClaim").eq("_id", id).eq('approved', false). eq('denied', false).find().then((members) => {
+        console.log(members)
+        if (members.length < 1) {
+            throw 'no request';
+        }
+        let summary = members.items[0];
+        console.log(summary)
+        let toUpdate = {
+            "_id": summary._id,
+            "title": summary.title,
+            "childId": summary.childId,
+            "parentId": summary.parentId,
+            "approved": false,
+            "denied": true
+        };
+        return wixData.update("childClaim", toUpdate)
+            .then((results) => {
+                return wixData.query("members")
+            })
+            .catch((err) => {
+                throw err;
+            });
+    }).catch((err) => {
+        throw err;
+    })
+}
+export function denySummary(id) {
+    wixData.query("summaries").eq("_id", id).find().then((summaries) => {
+        if (summaries.length < 1) {
+            throw 'no summary';
+        }
+        let summary = summaries.items[0];
+        let toUpdate = {
+            "_id": summary._id,
+            "title": summary.title,
+            "memberId": summary.memberId,
+            "eventId": summary.eventId,
+            "buddyId": summary.buddyId,
+            "content": summary.content,
+            "approved": false,
+            "denied": true,
+            "eventHistoryId": summary.eventHistoryId
+        };
+        wixData.update("summaries", toUpdate)
+            .then((results) => {})
+            .catch((err) => {
+                throw err;
+            });
+    }).catch((err) => {
+        throw err;
+    })
+
+}

@@ -1,0 +1,32 @@
+import { wixEvents } from 'wix-events-backend';
+import { currentMember } from 'wix-members-backend';
+
+// ...
+export function getEvent(slug) {
+    return wixEvents.queryEvents()
+        .eq("slug", slug)
+        .limit(1)
+        .find()
+        .then((results) => {
+            if (results.totalCount > 0) {
+                return results.items;
+            } else {
+                throw "no results";
+            }
+        })
+        .catch((error) => {
+            throw error;
+        });
+}
+export function getMemberInfo(options) {
+    return currentMember.getMember(options)
+        .then((member) => {
+            const memberId = member._id;
+            const fullName = `${member.contactDetails.firstName} ${member.contactDetails.lastName}`;
+            const memberProfilePage = `https://yoursite.com/profile/${member.profile.slug}/profile`;
+            return member;
+        })
+        .catch((error) => {
+            throw error;
+        })
+}

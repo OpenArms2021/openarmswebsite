@@ -1,0 +1,37 @@
+import { authorization } from 'wix-members-backend';
+import { authentication } from 'wix-members-backend';
+import wixData from 'wix-data';
+// export function checkEmailDuplicates() {
+//     return wixData.query("Members/PrivateMembersData")
+//         .eq("loginEmail", "volunteer@gmail.com22")
+//         .find()
+//         .then((results) => {
+//             return results.length;
+//             }).catch((err)=>{
+//                 throw err;
+//             })
+// }
+export function customRegister(email, password, options) {
+    return authentication.register(email, password, options)
+        .then((registrationResult) => {
+            return registrationResult;
+        }).catch((error) => {
+            throw error;
+        });
+}
+export function addRole(Role, MemberId) {
+    const volunteerRoleId = "d751ae42-bc28-42ec-8c9a-0f0d983633b3";
+    const memberRoleId = "655dcd71-2331-4392-8038-0ac6eb5a4789";
+    let roleId;
+    if (Role === "Member") {
+        roleId = memberRoleId;
+    } else {
+        roleId = volunteerRoleId;
+    }
+    return authorization.assignRole(roleId, MemberId).then(() => {
+        console.log("role added");
+    }).catch((error) => {
+        console.log(error);
+    });
+
+}

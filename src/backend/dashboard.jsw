@@ -1,0 +1,93 @@
+import wixData from 'wix-data';
+
+
+export function getMembers() {
+     return wixData.query("members")
+        .ascending("firstName")
+        .find()
+        .then((results) => {
+            let items = results.items
+            let memberOptions = items.map(({ title, _id }) => {
+                return {
+                    "label": title,
+                    "value": _id
+                }
+
+            });
+            memberOptions.unshift({
+                "label": "Not Listed",
+                "value": "Not Listed"
+            })
+            return memberOptions;
+        }).catch((err) => {
+            throw err;
+        });
+}
+export function getEventHistory(memberId) {
+    return wixData.query("volunteerEventHistory")
+        .eq("volunteerId", memberId)
+        .eq("summarySubmitted", false)
+        .find()
+        .then((results) => {
+            let events = results.items
+            let eventIds = events.map((event) => event.eventId);
+            return eventIds;
+        });
+}
+export function getEventsData(eventIds) {
+    return wixData.query("Events/Events")
+        .hasSome("_id", eventIds)
+        .le("end", new Date())
+        .find()
+        .then((events) => {
+            return events.items;
+        })
+}
+export function submitSummary(eventId, memberId, content, memberName, buddyId) {
+    return wixData.query("volunteerEventHistory")
+        .eq('volunteerId', memberId)
+        .eq('eventId', eventId)
+        .find()
+        .then((eventToken) => {
+            if(eventToken.length<1){
+                throw 'Event not found in history';
+            }
+            let eventOfSummary = eventToken.items[0];
+            if (eventOfSummary.summarySubmitted === true) {
+                throw "Summary Already submitted";
+            }
+            let toUpdate = {
+                "summarySubmitted": true,
+                "_id": eventOfSummary._id,
+                "title": eventOfSummary.title,
+                "rsvpId": eventOfSummary.rsvpId,
+                "eventId": eventOfSummary.eventId,
+                "volunteerId": eventOfSummary.volunteerId,
+            };
+            let toInsert = {
+                "title": memberName,
+                "memberId": memberId,
+                "eventId": eventId,
+                "content": content,
+                "eventHistoryId": eventOfSummary._id,
+                "buddyId": buddyId,
+                "approved":false,
+                "denied":false
+
+            };
+            return wixData.insert("summaries", toInsert)
+                .then((item) => {
+
+                    return wixData.update("volunteerEventHistory", toUpdate)
+                        .then((results) => {
+                            return "finished";
+                        })
+                        .catch((err) => {
+                            throw err;
+                        });
+                })
+        })
+        .catch((err) => {
+            throw err;
+        });
+}
